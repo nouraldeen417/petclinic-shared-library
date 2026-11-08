@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+    - name: tools
+      image: busybox:1.36
+      command: ["sleep"]
+      args: ["infinity"]
+    - name: kaniko
+      image: gcr.io/kaniko-project/executor:v1.23.2-debug
+      command: ["/busybox/cat"]
+      tty: true
+      resources:
+        requests:
+          memory: "1Gi"
+          cpu: "500m"
+        limits:
+          memory: "2Gi"
+    - name: trivy
+      image: aquasec/trivy:0.58.0
+      command: ["sleep"]
+      args: ["infinity"]
+      resources:
+        requests:
+          memory: "1Gi"
+          cpu: "500m"
+        limits:
+          memory: "2Gi"
+    - name: crane
+      image: gcr.io/go-containerregistry/crane:debug
+      command: ["/busybox/cat"]
+      tty: true

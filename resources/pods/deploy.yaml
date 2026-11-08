@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: jenkins-deployer
+  containers:    
+    - name: kubectl
+      image: alpine/k8s:1.31.2
+      command: ["sleep"]
+      args: ["infinity"]
