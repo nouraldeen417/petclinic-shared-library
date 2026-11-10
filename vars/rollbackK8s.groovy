@@ -1,6 +1,15 @@
-// Contract: the agent pod has a container named containerName (default: kubectl)
-// and a ServiceAccount that may patch deployments in the namespace.
-// It never fails the build. The caller rethrows the original error.
+// rollbackK8s: go back to the previous version of a Deployment.
+// It is called by deployToK8s and smokeTest when they fail. Callers rethrow their own
+// error, so the build stays red.
+// Parameters:
+//   namespace      required   the namespace to roll back
+//   deployment     optional   default: petclinic
+//   timeout        optional   how long to wait for the old version. Default: 180s
+//   containerName  optional   default: kubectl
+// Contract: the pod has that container, and its service account may patch deployments
+//   in the namespace.
+// On failure: it never fails the build. It prints the reason. The first deploy of an
+//   application has no earlier version, so there is nothing to go back to.
 def call(Map args = [:]) {
   String containerName = args.containerName ?: 'kubectl'
   String namespace     = args.namespace ?: error('rollbackK8s: namespace is required')

@@ -1,0 +1,86 @@
+// =============================================================================
+// Example: how an application uses the shared library.
+// Copy this file to the application repository, call it Jenkinsfile, and change the
+// three values in the environment block. See the README of the library for the list
+// of functions and what each one needs.
+//
+// The library is pinned here to main while developing. For a stable release, use a
+// tag, for example @v1.0.0.
+// =============================================================================
+@Library('petclinic-shared-library@main') _
+
+pipeline {
+  agent none                      // no pod until a stage asks for one
+
+  environment {                   // per-application values. None of them is a secret.
+    IMAGE_REPO    = 'docker.io/YOUR_DOCKERHUB_USER/petclinic'
+    SONAR_ORG     = 'YOUR_SONAR_ORGANIZATION_KEY'
+    SONAR_PROJECT = 'YOUR_SONAR_PROJECT_KEY'
+  }
+
+  options {
+    skipDefaultCheckout(true)     // checkoutSource() does the checkout and checks the commit
+    timestamps()
+    buildDiscarder(logRotator(numToKeepStr: '10'))
+    timeout(time: 90, unit: 'MINUTES')
+  }
+
+  stages {
+    stage('Build and Analyze') {
+      agent { kubernetes { yaml libraryResource('pods/maven.yaml'); defaultContainer 'maven' } }
+      steps {
+        script {
+          env.IMAGE_TAG = checkoutSource().take(7)
+          env.BUILD_TS  = sh(script: 'date -u +%Y%m%d-%H%M%S', returnStdout: true).trim()
+        }
+        mavenSettings()
+        script {
+          def art = artifactInfo(tag: env.IMAGE_TAG)
+          env.ART_VERSION = art.version
+          env.ART_URL     = art.url
+        }
+        sh 'mvn -B clean compile'
+        mavenTest()
+        sonarScan(org: env.SONAR_ORG, project: env.SONAR_PROJECT)
+        publishJar(version: env.ART_VERSION, url: env.ART_URL)
+      }
+    }
+
+    stage('Package Image') {
+      agent { kubernetes { yaml libraryResource('pods/image.yaml'); defaultContainer 'tools' } }
+      steps {
+        checkoutSource(expectedTag: env.IMAGE_TAG)
+        fetchJar(url: env.ART_URL)
+        buildImage(repoUrl: env.IMAGE_REPO, tag: env.IMAGE_TAG)
+        scanImage()
+        pushImage(repoUrl: env.IMAGE_REPO, tag: env.IMAGE_TAG, timeStamp: env.BUILD_TS)
+      }
+    }
+
+    stage('Deploy Dev') {
+      agent { kubernetes { yaml libraryResource('pods/deploy.yaml'); defaultContainer 'kubectl' } }
+      steps {
+        checkoutSource(expectedTag: env.IMAGE_TAG)
+        deployToK8s(namespace: 'petclinic-dev', manifestDir: 'k8s/dev',
+                    repoUrl: env.IMAGE_REPO, tag: env.IMAGE_TAG)
+        smokeTest(namespace: 'petclinic-dev',
+                  dataPath: '/owners?lastName=Franklin', dataExpect: 'Franklin')
+      }
+    }
+
+    stage('Approve Staging') {
+      steps { approve(message: 'Promote this image to staging?') }
+    }
+
+    stage('Deploy Staging') {
+      agent { kubernetes { yaml libraryResource('pods/deploy.yaml'); defaultContainer 'kubectl' } }
+      steps {
+        checkoutSource(expectedTag: env.IMAGE_TAG)
+        deployToK8s(namespace: 'petclinic-staging', manifestDir: 'k8s/staging',
+                    repoUrl: env.IMAGE_REPO, tag: env.IMAGE_TAG)
+        smokeTest(namespace: 'petclinic-staging',
+                  dataPath: '/owners?lastName=Franklin', dataExpect: 'Franklin')
+      }
+    }
+  }
+}

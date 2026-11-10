@@ -1,15 +1,26 @@
+# =============================================================================
+# Agent pod 1: build, test, analyse, publish the jar
+# Used by the stage "Build and Analyze" (defaultContainer: maven).
+# Loaded with libraryResource('pods/maven.yaml') and given to the Kubernetes plugin.
+# Container names are a contract with the library functions. Do not rename them.
+# The plugin adds a jnlp container by itself, which connects the pod to Jenkins.
+# =============================================================================
 apiVersion: v1
 kind: Pod
 spec:
+  # KNOWN ISSUE: this pod does not talk to the cluster, so it does not need the deploy
+  # account. Only deploy.yaml should have it. Remove this line in a separate commit and
+  # run the pipeline once (see the README of this repository). Left in place for now,
+  # so that the comment pass changes no behavior.
   serviceAccountName: jenkins-deployer
-  containers:    
-    - name: maven
+  containers:
+    - name: maven                                   # used by the default container and by mvn steps
       image: maven:3.9-eclipse-temurin-17
-      command: ["sleep"]
+      command: ["sleep"]                            # keeps the container alive. Jenkins runs the steps inside it.
       args: ["infinity"]
       resources:
         requests:
-          memory: "1Gi"
+          memory: "1Gi"                             # reserved on the node while the pod lives
           cpu: "500m"
         limits:
-          memory: "2Gi"
+          memory: "2Gi"                             # Maven with the Spring tests needs more than 1 Gi

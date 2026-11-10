@@ -1,11 +1,22 @@
+# =============================================================================
+# Agent pod 2: build the image, scan it, push it
+# Used by the stage "Package Image" (defaultContainer: tools).
+# The four containers share one workspace, which is why image.tar written by Kaniko
+# can be read by Trivy and crane. No service account is set, so the pod has no
+# rights in the cluster.
+# Container names are a contract with the library functions. Do not rename them.
+# =============================================================================
 apiVersion: v1
 kind: Pod
 spec:
   containers:
+    # Tiny shell with wget. fetchJar uses it to download the jar from Nexus.
     - name: tools
       image: busybox:1.36
       command: ["sleep"]
       args: ["infinity"]
+    # Builds the image without a Docker daemon. The debug tag has a shell, which the
+    # steps need. The cat command keeps the container alive.
     - name: kaniko
       image: gcr.io/kaniko-project/executor:v1.23.2-debug
       command: ["/busybox/cat"]
@@ -16,6 +27,7 @@ spec:
           cpu: "500m"
         limits:
           memory: "2Gi"
+    # Scans image.tar for known vulnerabilities.
     - name: trivy
       image: aquasec/trivy:0.58.0
       command: ["sleep"]
@@ -26,6 +38,8 @@ spec:
           cpu: "500m"
         limits:
           memory: "2Gi"
+    # Pushes image.tar to the registry and adds the second tag.
+    # Known improvement: this tag floats. Pin an exact version.
     - name: crane
       image: gcr.io/go-containerregistry/crane:debug
       command: ["/busybox/cat"]

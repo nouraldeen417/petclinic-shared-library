@@ -1,8 +1,18 @@
+# =============================================================================
+# Agent pod 3 and 4: deploy and smoke test (dev, then staging)
+# Used by the stages "Deploy Dev" and "Deploy Staging" (defaultContainer: kubectl).
+# This is the ONLY template that runs as the account jenkins-deployer. That account has
+# a Role in petclinic-dev and in petclinic-staging: it can apply and patch
+# deployments and services, and cannot delete anything or read Secrets.
+# (platform/rbac/ in the application repository)
+# =============================================================================
 apiVersion: v1
 kind: Pod
 spec:
-  serviceAccountName: jenkins-deployer
-  containers:    
+  serviceAccountName: jenkins-deployer    # must be directly under spec, not under a container
+  containers:
+    # kubectl for apply and rollout, and wget and grep for the smoke test.
+    # Keep the version close to the cluster version (check with kubectl version).
     - name: kubectl
       image: alpine/k8s:1.31.2
       command: ["sleep"]

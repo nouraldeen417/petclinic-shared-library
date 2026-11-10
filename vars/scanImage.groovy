@@ -1,5 +1,17 @@
-// Contract: the agent pod has a container named containerName (default: trivy).
-// Reads $WORKSPACE/image.tar. Fails the build when findings of the chosen severity exist.
+// scanImage: scan the image file with Trivy and fail on serious findings.
+// Parameters:
+//   severity       optional   default: HIGH,CRITICAL
+//   timeout        optional   default: 15m (the default of Trivy, 5 minutes, was too short)
+//   cacheDir       optional   default: /tmp/trivy
+//   containerName  optional   default: trivy
+// Contract:
+//   - the pod has that container (resources/pods/image.yaml)
+//   - it reads $WORKSPACE/image.tar, written by buildImage
+// Choices in the command:
+//   --scanners vuln    only vulnerabilities. Secret scanning of a big jar is slow.
+//   --ignore-unfixed   only findings that have a fix. Nothing with a fix is hidden.
+//   --exit-code 1      makes the stage fail when something is found.
+// On failure: the build stops here, before pushImage.
 def call(Map args = [:]) {
   String containerName = args.containerName ?: 'trivy'
   String severity      = args.severity ?: 'HIGH,CRITICAL'
